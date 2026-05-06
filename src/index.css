@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+/* ========================================
+   GAME PLAYZ — PS5 Theme (True Black)
+   ======================================== */
+
+@theme {
+  --color-ps-deep: #000000;
+  --color-ps-dark: #0a0a0a;
+  --color-ps-surface: #111111;
+  --color-ps-card: #181818;
+  --color-ps-elevated: #222222;
+
+  --color-ps-accent: #ffffff;
+  --color-ps-accent-bright: #ffffff;
+  --color-ps-secondary: #7b61ff;
+  --color-ps-secondary-bright: #9b85ff;
+
+  --color-ps-text: #e8eaf0;
+  --color-ps-text-dim: #8b93a8;
+  --color-ps-text-muted: #555555;
+
+  --color-ps-glass: rgba(10, 10, 10, 0.75);
+  --color-ps-glass-border: rgba(255, 255, 255, 0.08);
+  --color-ps-glass-highlight: rgba(255, 255, 255, 0.03);
+
+  --shadow-glow-sm: 0 0 15px rgba(255, 255, 255, 0.08);
+  --shadow-glow-md: 0 0 30px rgba(255, 255, 255, 0.1);
+  --shadow-glow-lg: 0 0 60px rgba(255, 255, 255, 0.12);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5);
+
+  --blur-glass: 20px;
+  --ease-ps: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-ps: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* ========================================
+   Global Base
+   ======================================== */
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000000;
+    color: var(--color-ps-text);
+    font-family: var(--font-ps);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+  }
+
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  ::selection { background: rgba(255, 255, 255, 0.2); color: #fff; }
+}
+
+/* ========================================
+   Utilities
+   ======================================== */
+
+@layer utilities {
+  .glass {
+    background: var(--color-ps-glass);
+    backdrop-filter: blur(var(--blur-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass));
+    border: 1px solid var(--color-ps-glass-border);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3), 0 0 40px rgba(255, 255, 255, 0.1);
+  }
+
+  /* PS5-style focus glow — soft white border */
+  .focus-glow {
+    box-shadow: 0 0 0 2.5px rgba(255, 255, 255, 0.85),
+                0 0 15px rgba(255, 255, 255, 0.25),
+                0 0 30px rgba(255, 255, 255, 0.1);
+  }
+
+  .focus-glow-play {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9),
+                0 0 25px rgba(255, 255, 255, 0.3);
+  }
+
+  /* GPU-promoted crisp banner rendering (WebView2 optimized) */
+  .banner-crisp {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    object-fit: cover;
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* GPU layer promotion for animated elements */
+  .gpu-layer {
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
