@@ -1,14 +1,17 @@
 #Lunaris v1.0
+
 A lightweight, console-inspired desktop game launcher built using Tauri, Rust, and React.
 
 ---
 
 #Overview
+
 Lunaris is designed for high performance and visual fidelity. Unlike traditional Electron-based launchers, Lunaris utilizes the Tauri framework to interface directly with the system's native WebView, ensuring a minimal memory footprint while maintaining a rich, hardware-accelerated user interface.
 
 ---
 
 #Key Features
+
 Memory Efficiency: Optimized WebView2 lifecycle management, maintaining a stable footprint of under 190MB RAM during operation.
 
 High-Fidelity Visuals: GPU-accelerated background banners featuring sub-pixel rendering and high-contrast interpolation for crisp assets.
