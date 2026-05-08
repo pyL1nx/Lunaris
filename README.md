@@ -16,11 +16,11 @@ Lunaris uses a custom-built bridge to sync local game progress with official Ste
 
 **Pre-Requisites**
 
-Goldberg Emulator: Download here
+Goldberg Emulator: https://mr_goldberg.gitlab.io/goldberg_emulator/
 
-Steam Web API Key: Generate yours here
+Steam Web API Key: https://steamcommunity.com/dev/apikey
 
-SteamDB: Look up AppIDs here
+SteamDB: [Look up AppIDs here](https://steamdb.info/)
 
 **Enabling the System**
 
