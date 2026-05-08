@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { useGameStore } from '../stores/gameStore';
 
 interface GameIconProps {
@@ -22,6 +22,11 @@ export default function GameIcon({ game, index, isSelected, isRunning, onSelect 
     onFocus: onSelect,
   });
 
+  const handleSelect = () => {
+    setFocus(`GAME_ICON_${game.id}`);
+    onSelect();
+  };
+
   const showGlow = focused || isSelected;
 
   return (
@@ -30,7 +35,7 @@ export default function GameIcon({ game, index, isSelected, isRunning, onSelect 
       initial={{ opacity: 0, y: 15, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      onClick={onSelect}
+      onClick={handleSelect}
       className="relative flex-shrink-0 cursor-pointer"
     >
       <motion.div
@@ -79,6 +84,16 @@ export default function GameIcon({ game, index, isSelected, isRunning, onSelect 
           </div>
         )}
 
+        {/* Favourite star badge */}
+        {game.is_favourite && (
+          <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(255,200,50,0.9)' }}>
+            <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="#fff" stroke="none">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
+            </svg>
+          </div>
+        )}
+
         {/* Ghost overlay icon for missing exe */}
         {isMissing && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -100,6 +115,22 @@ export default function GameIcon({ game, index, isSelected, isRunning, onSelect 
           />
         )}
       </motion.div>
+
+      {/* Selected game title below the icon */}
+      <AnimatePresence>
+        {isSelected && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-[100%] left-1/2 -translate-x-1/2 mt-3 text-[13px] font-medium text-center w-max max-w-[120px] leading-snug line-clamp-2 z-10 pointer-events-none"
+            style={{ color: '#e8eaf0' }}
+          >
+            {game.name}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

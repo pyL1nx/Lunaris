@@ -12,6 +12,25 @@ export default function TopBar() {
   const games = useGameStore((s) => s.games);
   const selectByIndex = useGameStore((s) => s.selectByIndex);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [steamApiKey, setSteamApiKey] = useState(() => localStorage.getItem('steamApiKey') || '');
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Close profile menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    if (profileOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [profileOpen]);
+
+  const handleSaveSteamApiKey = () => {
+    localStorage.setItem('steamApiKey', steamApiKey);
+    setProfileOpen(false);
+  };
 
   // Clock
   useEffect(() => {
@@ -78,6 +97,8 @@ export default function TopBar() {
       } catch {}
     }
   }, []);
+
+
 
   // Search: find all matching games and navigate to first
   const handleSearch = useCallback((query: string) => {
@@ -199,11 +220,49 @@ export default function TopBar() {
         </AnimatePresence>
 
         {/* Profile */}
-        <div className="w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #333, #555)' }}>
-          <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" />
-          </svg>
+        <div className="relative" ref={profileRef}>
+          <button 
+            onClick={() => setProfileOpen(!profileOpen)}
+            className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #333, #555)' }}>
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" />
+            </svg>
+          </button>
+          
+          <AnimatePresence>
+            {profileOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="absolute top-full right-0 mt-3 w-64 rounded-xl p-4 shadow-2xl backdrop-blur-xl border"
+                style={{ 
+                  background: 'rgba(20,20,20,0.85)', 
+                  borderColor: 'rgba(255,255,255,0.1)' 
+                }}
+              >
+                <h3 className="text-sm font-semibold text-white mb-1">Steam API Settings</h3>
+                <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  Required to fetch game achievements from Steam.
+                </p>
+                <input
+                  type="text"
+                  value={steamApiKey}
+                  onChange={(e) => setSteamApiKey(e.target.value)}
+                  placeholder="Enter Steam Web API Key"
+                  className="w-full bg-black/40 text-white text-xs px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-white/30 border border-white/10 mb-3 transition-all"
+                />
+                <button
+                  onClick={handleSaveSteamApiKey}
+                  className="w-full bg-white text-black text-xs font-semibold py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Save Key
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Clock */}

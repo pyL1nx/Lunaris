@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, exeNameFromPath } from '../stores/gameStore';
-import { pickExeFile, pickImageFile } from '../utils/fileUtils';
+import { pickExeFile, pickImageFile, pickRomFile, pickDirectory } from '../utils/fileUtils';
 
 export default function AddGameModal() {
   const isOpen = useGameStore((s) => s.isAddModalOpen);
@@ -21,18 +21,26 @@ export default function AddGameModal() {
   const [manualMinutes, setManualMinutes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [useEmulator, setUseEmulator] = useState(false);
+  const [emulatorPath, setEmulatorPath] = useState('');
+  const [emulatorFlags, setEmulatorFlags] = useState('');
+  const [steamId, setSteamId] = useState('');
+  const [rootPath, setRootPath] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const resetForm = useCallback(() => {
     setName(''); setDescription(''); setExePath('');
     setIconSource(null); setBannerSource(null);
     setIsCompleted(false); setManualHours(''); setManualMinutes('');
-    setErrors({}); setIsSaving(false);
+    setUseEmulator(false); setEmulatorPath(''); setEmulatorFlags('');
+    setSteamId(''); setRootPath('');
+    setErrors({}); setIsSaving(false); setIsSyncing(false);
   }, []);
 
   const handleClose = useCallback(() => { resetForm(); closeModal(); }, [resetForm, closeModal]);
 
   const handlePickExe = useCallback(async () => {
-    const path = await pickExeFile();
+    const path = useEmulator ? await pickRomFile() : await pickExeFile();
     if (path) {
       setExePath(path);
       setErrors((p) => ({ ...p, exePath: '' }));
@@ -41,12 +49,47 @@ export default function AddGameModal() {
         setName(fn.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
       }
     }
-  }, [name]);
+  }, [name, useEmulator]);
+
+  const handlePickEmulator = useCallback(async () => {
+    const path = await pickExeFile();
+    if (path) { setEmulatorPath(path); setErrors((p) => ({ ...p, emulatorPath: '' })); }
+  }, []);
+
+  const handlePickRoot = useCallback(async () => {
+    const path = await pickDirectory();
+    if (path) setRootPath(path);
+  }, []);
+
+  const handleSyncAchievements = useCallback(async () => {
+    if (!steamId || !rootPath) {
+      setErrors((p) => ({ ...p, sync: 'Steam App ID and Game Root Directory are required to sync achievements.' }));
+      return;
+    }
+    const apiKey = localStorage.getItem('steamApiKey');
+    if (!apiKey) {
+      setErrors((p) => ({ ...p, sync: 'Steam API Key not found. Please set it in your Profile.' }));
+      return;
+    }
+    setIsSyncing(true);
+    setErrors((p) => ({ ...p, sync: '' }));
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('inject_achievements', { steamId, apiKey, rootPath });
+      setErrors((p) => ({ ...p, syncSuccess: 'Achievements injected successfully!' }));
+      setTimeout(() => setErrors((p) => ({ ...p, syncSuccess: '' })), 3000);
+    } catch (e) {
+      setErrors((p) => ({ ...p, sync: String(e) }));
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [steamId, rootPath]);
 
   const handleSubmit = useCallback(async () => {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = 'Required';
     if (!exePath.trim()) newErrors.exePath = 'Required';
+    if (useEmulator && !emulatorPath.trim()) newErrors.emulatorPath = 'Required';
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
     setIsSaving(true);
     try {
@@ -56,14 +99,23 @@ export default function AddGameModal() {
       let bannerPath = '';
       if (iconSource) iconPath = await copyAsset(iconSource, name, 'icon');
       if (bannerSource) bannerPath = await copyAsset(bannerSource, name, 'banner');
-      await addGame({ id, name: name.trim(), exe_path: exePath.trim(), icon_path: iconPath, banner_path: bannerPath, description: description.trim(), is_completed: isCompleted });
+      await addGame({
+        id, name: name.trim(), exe_path: exePath.trim(),
+        icon_path: iconPath, banner_path: bannerPath,
+        description: description.trim(), is_completed: isCompleted,
+        is_favourite: false,
+        emulator_path: useEmulator ? emulatorPath.trim() : '',
+        emulator_flags: useEmulator ? emulatorFlags.trim() : '',
+        steam_id: steamId.trim(),
+        root_path: rootPath.trim(),
+      });
       const hrs = parseInt(manualHours) || 0;
       const mins = parseInt(manualMinutes) || 0;
       const totalSec = hrs * 3600 + mins * 60;
       if (totalSec > 0) await setManualPlaytime(exeNameFromPath(exePath.trim()), totalSec);
       handleClose();
     } catch (e) { setErrors({ submit: String(e) }); } finally { setIsSaving(false); }
-  }, [name, description, exePath, iconSource, bannerSource, isCompleted, manualHours, manualMinutes, addGame, copyAsset, setManualPlaytime, handleClose]);
+  }, [name, description, exePath, iconSource, bannerSource, isCompleted, useEmulator, emulatorPath, emulatorFlags, steamId, rootPath, manualHours, manualMinutes, addGame, copyAsset, setManualPlaytime, handleClose]);
 
   const fName = (p: string | null) => p?.split(/[\\/]/).pop() ?? '';
   const inputStyle = { background: 'rgba(15,15,15,0.9)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0', caretColor: '#fff' };
@@ -99,11 +151,84 @@ export default function AddGameModal() {
                 <input value={description} onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. Be Greater. Be Yourself." className="w-full px-4 py-2.5 rounded-xl text-sm outline-none" style={inputStyle} />
               </div>
+              <div className="grid grid-cols-[1fr_2.5fr] gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Steam App ID</label>
+                  <input value={steamId} onChange={(e) => setSteamId(e.target.value)}
+                    placeholder="e.g. 1245620" className="w-full px-4 py-2.5 rounded-xl text-sm outline-none" style={inputStyle} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Game Root Directory</label>
+                  <div className="flex gap-2">
+                    <input value={rootPath} onChange={(e) => setRootPath(e.target.value)}
+                      placeholder="C:\Games\GameName" className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none" style={inputStyle} />
+                    <button onClick={handlePickRoot} className="px-4 py-2.5 rounded-xl text-xs font-semibold uppercase transition-all hover:bg-white/[0.06]"
+                      style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}>Browse</button>
+                  </div>
+                </div>
+              </div>
+
+              {(steamId || rootPath) && (
+                <div className="p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs" style={{ color: '#8b93a8' }}>Injects `steam_settings/achievements.json` to the root directory for Goldberg tracking.</p>
+                    <button 
+                      onClick={handleSyncAchievements} 
+                      disabled={isSyncing || !steamId || !rootPath}
+                      className="px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                      style={{ background: 'rgba(255,255,255,0.9)', color: '#000' }}
+                    >
+                      {isSyncing ? 'Syncing...' : 'Sync Achievements'}
+                    </button>
+                  </div>
+                  {errors.sync && <p className="text-[10px] mt-2 text-red-400">{errors.sync}</p>}
+                  {errors.syncSuccess && <p className="text-[10px] mt-2 text-green-400">{errors.syncSuccess}</p>}
+                </div>
+              )}
+
+              {/* Emulator mode toggle */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="w-5 h-5 rounded-md flex items-center justify-center relative"
+                  style={{ background: useEmulator ? 'rgba(123,97,255,0.2)' : 'rgba(15,15,15,0.9)', border: useEmulator ? '1.5px solid rgba(123,97,255,0.5)' : '1.5px solid rgba(255,255,255,0.1)' }}>
+                  <input type="checkbox" checked={useEmulator} onChange={(e) => setUseEmulator(e.target.checked)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  {useEmulator && <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="#7b61ff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
+                </div>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8b93a8' }}>Launch through Emulator</span>
+              </label>
+
+              {/* Emulator path + flags (collapsible) */}
+              <AnimatePresence>
+                {useEmulator && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    className="space-y-4 overflow-hidden">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Emulator Path *</label>
+                      <div className="flex gap-2">
+                        <input value={emulatorPath} onChange={(e) => { setEmulatorPath(e.target.value); setErrors((p) => ({ ...p, emulatorPath: '' })); }}
+                          placeholder="C:\Emulators\sudachi.exe" className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                          style={{ ...inputStyle, border: errors.emulatorPath ? errorBorder : inputStyle.border }} />
+                        <button onClick={handlePickEmulator} className="px-4 py-2.5 rounded-xl text-xs font-semibold uppercase transition-all hover:bg-white/[0.06]"
+                          style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}>Browse</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Emulator Flags</label>
+                      <input value={emulatorFlags} onChange={(e) => setEmulatorFlags(e.target.value)}
+                        placeholder="-f --fullscreen --no-gui" className="w-full px-4 py-2.5 rounded-xl text-sm outline-none" style={inputStyle} />
+                      <p className="text-[10px] mt-1" style={{ color: '#555' }}>CLI arguments passed before the ROM path (e.g. -f for fullscreen)</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Executable *</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>
+                  {useEmulator ? 'ROM / ISO Path *' : 'Executable *'}
+                </label>
                 <div className="flex gap-2">
                   <input value={exePath} onChange={(e) => { setExePath(e.target.value); setErrors((p) => ({ ...p, exePath: '' })); }}
-                    placeholder="C:\Games\game.exe" className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                    placeholder={useEmulator ? 'C:\\Games\\MyGame.nsp' : 'C:\\Games\\game.exe'} className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
                     style={{ ...inputStyle, border: errors.exePath ? errorBorder : inputStyle.border }} />
                   <button onClick={handlePickExe} className="px-4 py-2.5 rounded-xl text-xs font-semibold uppercase transition-all hover:bg-white/[0.06]"
                     style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}>Browse</button>

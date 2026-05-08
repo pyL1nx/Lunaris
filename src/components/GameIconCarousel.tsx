@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation';
 import { useGameStore } from '../stores/gameStore';
 import GameIcon from './GameIcon';
@@ -31,7 +31,7 @@ export default function GameIconCarousel() {
     });
   }, [selectedIndex, games.length]);
 
-  const selectedGame = games[selectedIndex] ?? null;
+
 
   return (
     <FocusContext.Provider value={focusKey}>
@@ -40,7 +40,7 @@ export default function GameIconCarousel() {
         <div
           ref={scrollRef}
           className="flex items-center gap-3 overflow-x-auto pb-2"
-          style={{ scrollbarWidth: 'none', padding: '14px 14px 10px 14px' }}
+          style={{ scrollbarWidth: 'none', padding: '14px 14px 54px 34px' }}
         >
           {games.map((game, index) => (
             <GameIcon
@@ -71,23 +71,6 @@ export default function GameIconCarousel() {
             </svg>
           </motion.button>
         </div>
-
-        {/* Selected game title — below the icons */}
-        <AnimatePresence mode="wait">
-          {selectedGame && (
-            <motion.div
-              key={selectedGame.id}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="mt-2 text-sm font-medium"
-              style={{ color: '#e8eaf0' }}
-            >
-              {selectedGame.name}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </FocusContext.Provider>
   );

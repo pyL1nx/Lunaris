@@ -14,6 +14,12 @@ export interface Game {
   banner_path: string;
   description: string;
   is_completed: boolean;
+  is_favourite: boolean;
+  emulator_path: string;
+  emulator_flags: string;
+  last_played?: number;
+  steam_id?: string;
+  root_path?: string;
 }
 
 interface GameStoppedEvent {
@@ -31,13 +37,15 @@ interface GameStartedEvent {
 interface GameStore {
   // State
   games: Game[];
+  _rawGames: Game[]; // unsorted source of truth
   selectedIndex: number;
   isLoading: boolean;
   isTauri: boolean;
   appDir: string | null;
 
-  // Ghost state — tracks which exe files are missing
+  // Ghost state — tracks which exe/emulator files are missing
   missingExes: Set<string>; // game IDs with missing exe
+  missingEmulators: Set<string>; // game IDs with missing emulator exe
 
   // Modals
   isAddModalOpen: boolean;
@@ -57,6 +65,7 @@ interface GameStore {
   // Computed
   selectedGame: () => Game | null;
   isExeMissing: (gameId: string) => boolean;
+  isEmulatorMissing: (gameId: string) => boolean;
   visibleBannerRange: () => Set<number>;
 
   // Actions
@@ -68,11 +77,13 @@ interface GameStore {
   navigateLeft: () => void;
   navigateRight: () => void;
   evictDistantBanners: () => void;
+  sortGames: () => void;
 
   // CRUD
   addGame: (game: Game) => Promise<void>;
   updateGame: (game: Game) => Promise<void>;
   removeGame: (id: string) => Promise<void>;
+  toggleFavourite: (gameId: string) => Promise<void>;
 
   // Manual playtime
   setManualPlaytime: (exeName: string, totalSeconds: number) => Promise<void>;
@@ -133,11 +144,13 @@ export function formatPlaytimeDetailed(totalSeconds: number): string {
 
 export const useGameStore = create<GameStore>((set, get) => ({
   games: [],
+  _rawGames: [],
   selectedIndex: 0,
   isLoading: true,
   isTauri: false,
   appDir: null,
   missingExes: new Set(),
+  missingEmulators: new Set(),
   isAddModalOpen: false,
   isEditModalOpen: false,
   editingGame: null,
@@ -152,6 +165,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   isExeMissing: (gameId) => get().missingExes.has(gameId),
+  isEmulatorMissing: (gameId) => get().missingEmulators.has(gameId),
 
   visibleBannerRange: () => {
     const { selectedIndex, games } = get();
@@ -183,11 +197,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const rawGames = await invoke<Game[]>('load_games');
-      // Ensure is_completed defaults to false for old games
-      const games = rawGames.map((g) => ({ ...g, is_completed: g.is_completed ?? false }));
+      // Ensure defaults for old games (backward compat)
+      const games = rawGames.map((g) => ({
+        ...g,
+        is_completed: g.is_completed ?? false,
+        is_favourite: g.is_favourite ?? false,
+        emulator_path: g.emulator_path ?? '',
+        emulator_flags: g.emulator_flags ?? '',
+        steam_id: g.steam_id ?? '',
+        root_path: g.root_path ?? '',
+      }));
       await get().resolveGameAssets(games);
       const idx = Math.min(get().selectedIndex, Math.max(0, games.length - 1));
-      set({ games, selectedIndex: idx, isLoading: false });
+      set({ _rawGames: games, games, selectedIndex: idx, isLoading: false });
+      get().sortGames();
     } catch (e) {
       console.error('Failed to load games:', e);
       set({ isLoading: false });
@@ -211,14 +234,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const { invoke } = await import('@tauri-apps/api/core');
       const { games } = get();
       const missing = new Set<string>();
+      const missingEmus = new Set<string>();
       for (const game of games) {
         const exists = await invoke<boolean>('check_exe_exists', { path: game.exe_path });
         if (!exists) missing.add(game.id);
+        // Also check emulator path if set
+        if (game.emulator_path) {
+          const emuExists = await invoke<boolean>('check_emulator_exists', { path: game.emulator_path });
+          if (!emuExists) missingEmus.add(game.id);
+        }
       }
-      set({ missingExes: missing });
+      set({ missingExes: missing, missingEmulators: missingEmus });
+      // Re-sort after exe check so missing games go to end
+      get().sortGames();
     } catch {
       // In browser mode, skip exe checking
     }
+  },
+
+  // ── Sorting ────────────────────────────────────
+  // Sort order: favourites first → normal → missing exe last
+  sortGames: () => {
+    const { _rawGames, missingExes, selectedIndex, games: currentGames } = get();
+    // Remember currently selected game id before sort
+    const currentSelectedId = currentGames[selectedIndex]?.id;
+
+    const sorted = [..._rawGames].sort((a, b) => {
+      const aMissing = missingExes.has(a.id) ? 1 : 0;
+      const bMissing = missingExes.has(b.id) ? 1 : 0;
+      const aFav = a.is_favourite ? 1 : 0;
+      const bFav = b.is_favourite ? 1 : 0;
+
+      // Missing games go to end
+      if (aMissing !== bMissing) return aMissing - bMissing;
+      // Favourites go first (within non-missing)
+      if (aFav !== bFav) return bFav - aFav;
+      
+      // Most recently played goes first
+      const aLast = a.last_played ?? 0;
+      const bLast = b.last_played ?? 0;
+      if (aLast !== bLast) return bLast - aLast;
+
+      return 0; // preserve original order otherwise
+    });
+
+    // Restore selection to the same game after sort
+    let newIdx = sorted.findIndex((g) => g.id === currentSelectedId);
+    if (newIdx < 0) newIdx = Math.min(selectedIndex, Math.max(0, sorted.length - 1));
+
+    set({ games: sorted, selectedIndex: newIdx });
   },
 
   // ── Navigation ────────────────────────────────
@@ -265,7 +329,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('save_game', { game });
       await get().loadGames();
-      set({ selectedIndex: get().games.length - 1 });
+      // Select the newly added game by its id after sorting
+      const newIdx = get().games.findIndex((g) => g.id === game.id);
+      if (newIdx >= 0) set({ selectedIndex: newIdx });
       await get().checkAllExes();
     } catch (e) {
       console.error('Failed to add game:', e);
@@ -295,6 +361,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } catch (e) {
       console.error('Failed to remove game:', e);
     }
+  },
+
+  toggleFavourite: async (gameId) => {
+    const { games } = get();
+    const game = games.find((g) => g.id === gameId);
+    if (!game) return;
+    const updated: Game = { ...game, is_favourite: !game.is_favourite };
+    await get().updateGame(updated);
   },
 
   // ── Manual Playtime ────────────────────────────
@@ -366,7 +440,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (invoke) {
           try {
             const optimized = await invoke('optimize_image', {
-              sourcePath: game.banner_path, maxWidth: 1920, maxHeight: 1080,
+              sourcePath: game.banner_path, maxWidth: 3840, maxHeight: 2160,
             }) as string;
             if (optimized) pathToResolve = optimized;
           } catch {}
@@ -388,15 +462,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // ── Game Execution ────────────────────────────
 
   launchGame: async (game) => {
-    // Don't launch if exe is missing
+    // Don't launch if exe/ROM is missing
     if (get().missingExes.has(game.id)) {
-      set({ launchError: 'Executable file not found. The game may have been moved or uninstalled.' });
+      set({ launchError: game.emulator_path
+        ? 'ROM/ISO file not found. The game file may have been moved or deleted.'
+        : 'Executable file not found. The game may have been moved or uninstalled.'
+      });
+      return;
+    }
+    // Don't launch if emulator is missing
+    if (game.emulator_path && get().missingEmulators.has(game.id)) {
+      set({ launchError: 'Emulator executable not found. Please check the emulator path in game settings.' });
       return;
     }
     set({ launchError: null });
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('launch_game', { gameId: game.id, title: game.name, exePath: game.exe_path });
+      if (game.emulator_path) {
+        // Emulated game — launch through emulator
+        await invoke('launch_emulator', {
+          gameId: game.id,
+          title: game.name,
+          emulatorPath: game.emulator_path,
+          romPath: game.exe_path,
+          flags: game.emulator_flags || '',
+        });
+      } else {
+        // Native game — direct launch (existing behavior)
+        await invoke('launch_game', { gameId: game.id, title: game.name, exePath: game.exe_path });
+      }
       // Trigger explicit GC after launch to reclaim memory
       await invoke('purge_webview_memory');
     } catch (error) {
@@ -422,15 +516,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return { runningGameIds: newSet };
     });
 
-    if (event.session_seconds > 0) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('update_playtime', { exeName: event.exe_name, seconds: event.session_seconds });
-        await get().loadPlaytime();
-      } catch (e) {
-        console.error('Failed to update playtime:', e);
-      }
-    }
+    // Sync with backend updates (last_played and playtime)
+    await get().loadGames();
+    await get().loadPlaytime();
   },
 
   clearLaunchError: () => set({ launchError: null }),

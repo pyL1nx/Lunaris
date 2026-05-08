@@ -90,11 +90,17 @@
                 0 0 25px rgba(255, 255, 255, 0.3);
   }
 
-  /* GPU-promoted crisp banner rendering (WebView2 optimized) */
+  /* GPU-promoted 4K banner rendering (WebView2 / Chromium optimized) */
   .banner-crisp {
+    /* High-quality interpolation for photographic content on 4K displays */
     image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
+    image-rendering: high-quality;
+
+    /* Cover the container, centered — never stretch or distort */
     object-fit: cover;
+    object-position: center center;
+
+    /* GPU compositing for buttery transitions */
     will-change: transform, opacity;
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
