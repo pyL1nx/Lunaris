@@ -2,6 +2,8 @@
 
 The ultimate PS5-style unified dashboard for your gaming library. Experience seamless metadata integration, high-fidelity visuals, and real-time achievement tracking for all your games.
 
+<img width="1280" height="789" alt="image" src="https://github.com/user-attachments/assets/4303967f-5012-4933-99de-284d13a988b2" />
+
 --- 
 
 **Overview**
@@ -38,6 +40,9 @@ Click Sync Achievements. Lunaris will automatically generate the necessary steam
 
 Launch: Click Save. Your achievements will now trigger real-time UI updates in the Lunaris dashboard!
 
+<img width="1274" height="796" alt="Screenshot 2026-05-08 184305" src="https://github.com/user-attachments/assets/6da50b1d-5795-4b48-8368-dcdbc485722a" />
+
+
 ---
 
 **Emulator Support**
@@ -51,6 +56,9 @@ Select your Emulator Executable (e.g., Yuzu, Ryujinx, PCSX2).
 Select your Game ROM/Image (.nsp, .iso, .bin).
 
 Click Save and enjoy a unified console experience.
+
+<img width="1588" height="1001" alt="Screenshot 2026-05-07 114032" src="https://github.com/user-attachments/assets/9cde3afc-4b6e-45e6-ae92-3c08906d7538" />
+
 
 ---
 
