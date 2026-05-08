@@ -42,6 +42,8 @@ Launch: Click Save. Your achievements will now trigger real-time UI updates in t
 
 <img width="1274" height="796" alt="Screenshot 2026-05-08 184305" src="https://github.com/user-attachments/assets/6da50b1d-5795-4b48-8368-dcdbc485722a" />
 
+<img width="1269" height="796" alt="image" src="https://github.com/user-attachments/assets/ba09a212-023f-4b01-91f3-ef26b13fb09a" />
+
 
 ---
 
