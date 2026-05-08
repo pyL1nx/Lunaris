@@ -20,7 +20,7 @@ Lunaris uses a custom-built bridge to sync local game progress with official Ste
 
 Goldberg Emulator: [Download](https://mr_goldberg.gitlab.io/goldberg_emulator/)
 
-Steam Web API Key: [API KEY](https://steamcommunity.com/dev/apikey)
+Steam Web API Key: [API KEY](https://steamcommunity.com/dev/apikey)                                 **( MAKE SURE YOU HAVE ALREADY PURCHASED GAMES WORTH MORE THAN $5.3 )**
 
 SteamDB: [Look up AppIDs here](https://steamdb.info/)
 
@@ -59,7 +59,8 @@ Select your Game ROM/Image (.nsp, .iso, .bin).
 
 Click Save and enjoy a unified console experience.
 
-<img width="1588" height="1001" alt="Screenshot 2026-05-07 114032" src="https://github.com/user-attachments/assets/9cde3afc-4b6e-45e6-ae92-3c08906d7538" />
+<img width="1261" height="783" alt="image" src="https://github.com/user-attachments/assets/379d31a9-925b-42bf-baf1-3401790337f2" />
+
 
 
 ---
