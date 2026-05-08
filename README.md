@@ -1,40 +1,63 @@
-**Lunaris v1.0**
+**🌙 Lunaris Launcher**
 
-A lightweight, console-inspired desktop game launcher built using Tauri, Rust, and React.
+The ultimate PS5-style unified dashboard for your gaming library. Experience seamless metadata integration, high-fidelity visuals, and real-time achievement tracking for all your games.
 
----
+--- 
 
 **Overview**
 
-Lunaris is designed for high performance and visual fidelity. Unlike traditional Electron-based launchers, Lunaris utilizes the Tauri framework to interface directly with the system's native WebView, ensuring a minimal memory footprint while maintaining a rich, hardware-accelerated user interface.
+Lunaris is more than just a game launcher; it’s a high-performance metadata bridge. Designed with a sleek glassmorphic UI, it brings official Steam-level features—like achievements, playtime tracking, and dynamic banners—to your entire collection, including DRM-free titles and emulated games.
 
 ---
 
-**Key Features**
+**Real-Time Achievement Tracking**
 
-Memory Efficiency: Optimized WebView2 lifecycle management, maintaining a stable footprint of under 190MB RAM during operation.
+Lunaris uses a custom-built bridge to sync local game progress with official Steam metadata.
 
-High-Fidelity Visuals: GPU-accelerated background banners featuring sub-pixel rendering and high-contrast interpolation for crisp assets.
+**Pre-Requisites**
 
-Console-Grade UI/UX: A PS5-inspired aesthetic with fluid spring-physics transitions and subtle parallax motion.
+Goldberg Emulator: Download here
 
-Integrated Persistence: Local metadata storage for game libraries, including automated play-time tracking and state management.
+Steam Web API Key: Generate yours here
+
+SteamDB: Look up AppIDs here
+
+**Enabling the System**
+
+App Configuration: Click the Profile Icon in Lunaris and paste your Steam Web API Key. This allows the app to fetch official icons and descriptions.
+
+Goldberg Setup: Paste the Goldberg steam_api64.dll (or steam_api.dll) into your game's root directory where the original executable is located.
+
+Adding the Game: * Open the Add Game menu.
+
+Input the Steam AppID (from SteamDB).
+
+Select your game's Executable (.exe) and the Game Root Directory.
+
+Click Sync Achievements. Lunaris will automatically generate the necessary steam_settings and achievements.json for Goldberg.
+
+Launch: Click Save. Your achievements will now trigger real-time UI updates in the Lunaris dashboard!
 
 ---
 
-**Tech Stack**
+**Emulator Support**
 
-Backend: Rust (Tauri) for high-speed system calls and secure process execution.
+Play your favorite console classics directly through the Lunaris interface.
 
-Frontend: React and Framer Motion for declarative, high-performance UI animations.
+In the Add Game menu, toggle the "Launch through Emulator" switch.
 
-Styling: CSS3 with GPU-compositing for smooth rendering on high-refresh-rate displays.
+Select your Emulator Executable (e.g., Yuzu, Ryujinx, PCSX2).
 
-Installer: Compiled via NSIS for a lightweight Windows deployment experience.
+Select your Game ROM/Image (.nsp, .iso, .bin).
 
+Click Save and enjoy a unified console experience.
 
-<img width="1575" height="982" alt="Screenshot 2026-05-06 160157" src="https://github.com/user-attachments/assets/f4b30139-c801-4ccc-966d-0c86ad61700b" />
+---
 
-<img width="1591" height="988" alt="Screenshot 2026-05-06 161622" src="https://github.com/user-attachments/assets/3917be00-c042-4230-a818-69a5c8fad48a" />
+🎨 Aesthetic Guidelines
+To keep your dashboard looking like a AAA console interface:
 
+Backgrounds: Use 1920 x 1080p high-quality banners.
+
+Icons: Square icons work best for the top navigation bar.
 
