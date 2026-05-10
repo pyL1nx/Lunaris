@@ -27,6 +27,9 @@ export default function AddGameModal() {
   const [steamId, setSteamId] = useState('');
   const [rootPath, setRootPath] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [ownsOnSteam, setOwnsOnSteam] = useState(false);
+  const [steamUserId, setSteamUserId] = useState('');
+  const [useSteamIcon, setUseSteamIcon] = useState(false);
 
   const resetForm = useCallback(() => {
     setName(''); setDescription(''); setExePath('');
@@ -34,6 +37,7 @@ export default function AddGameModal() {
     setIsCompleted(false); setManualHours(''); setManualMinutes('');
     setUseEmulator(false); setEmulatorPath(''); setEmulatorFlags('');
     setSteamId(''); setRootPath('');
+    setOwnsOnSteam(false); setSteamUserId(''); setUseSteamIcon(false);
     setErrors({}); setIsSaving(false); setIsSyncing(false);
   }, []);
 
@@ -97,7 +101,16 @@ export default function AddGameModal() {
       const id = await invoke<string>('generate_game_id');
       let iconPath = '';
       let bannerPath = '';
-      if (iconSource) iconPath = await copyAsset(iconSource, name, 'icon');
+      if (useSteamIcon && steamId.trim()) {
+        // Fetch icon from Steam
+        try {
+          iconPath = await invoke<string>('fetch_steam_game_icon', { steamId: steamId.trim(), gameName: name.trim() });
+        } catch (e) {
+          console.error('Failed to fetch Steam icon:', e);
+        }
+      } else if (iconSource) {
+        iconPath = await copyAsset(iconSource, name, 'icon');
+      }
       if (bannerSource) bannerPath = await copyAsset(bannerSource, name, 'banner');
       await addGame({
         id, name: name.trim(), exe_path: exePath.trim(),
@@ -108,6 +121,9 @@ export default function AddGameModal() {
         emulator_flags: useEmulator ? emulatorFlags.trim() : '',
         steam_id: steamId.trim(),
         root_path: rootPath.trim(),
+        owns_on_steam: ownsOnSteam,
+        steam_user_id: steamUserId.trim(),
+        use_steam_icon: useSteamIcon,
       });
       const hrs = parseInt(manualHours) || 0;
       const mins = parseInt(manualMinutes) || 0;
@@ -115,7 +131,7 @@ export default function AddGameModal() {
       if (totalSec > 0) await setManualPlaytime(exeNameFromPath(exePath.trim()), totalSec);
       handleClose();
     } catch (e) { setErrors({ submit: String(e) }); } finally { setIsSaving(false); }
-  }, [name, description, exePath, iconSource, bannerSource, isCompleted, useEmulator, emulatorPath, emulatorFlags, steamId, rootPath, manualHours, manualMinutes, addGame, copyAsset, setManualPlaytime, handleClose]);
+  }, [name, description, exePath, iconSource, bannerSource, isCompleted, useEmulator, emulatorPath, emulatorFlags, steamId, rootPath, ownsOnSteam, steamUserId, manualHours, manualMinutes, addGame, copyAsset, setManualPlaytime, handleClose]);
 
   const fName = (p: string | null) => p?.split(/[\\/]/).pop() ?? '';
   const inputStyle = { background: 'rgba(15,15,15,0.9)', border: '1px solid rgba(255,255,255,0.06)', color: '#e8eaf0', caretColor: '#fff' };
@@ -237,11 +253,37 @@ export default function AddGameModal() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Icon</label>
-                  <button onClick={async () => { const p = await pickImageFile('Select Icon'); if (p) setIconSource(p); }}
-                    className="w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all hover:bg-white/[0.04] cursor-pointer"
-                    style={{ border: iconSource ? '2px solid rgba(255,255,255,0.2)' : '2px dashed rgba(255,255,255,0.1)' }}>
-                    {iconSource ? <><span className="text-lg">✓</span><span className="text-[11px] px-2 truncate w-full text-center" style={{ color: '#8b93a8' }}>{fName(iconSource)}</span></> : <span className="text-[11px]" style={{ color: '#4a5068' }}>Select</span>}
-                  </button>
+                  {steamId ? (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <div className="w-4 h-4 rounded flex items-center justify-center relative"
+                          style={{ background: useSteamIcon ? 'rgba(27,159,255,0.2)' : 'rgba(15,15,15,0.9)', border: useSteamIcon ? '1.5px solid rgba(27,159,255,0.5)' : '1.5px solid rgba(255,255,255,0.1)' }}>
+                          <input type="checkbox" checked={useSteamIcon} onChange={(e) => { setUseSteamIcon(e.target.checked); if (e.target.checked) setIconSource(null); }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                          {useSteamIcon && <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="#1b9fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
+                        <span className="text-[10px] font-semibold" style={{ color: '#8b93a8' }}>Use Steam Icon</span>
+                      </label>
+                      {useSteamIcon ? (
+                        <div className="w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1"
+                          style={{ border: '2px solid rgba(27,159,255,0.2)', background: 'rgba(27,159,255,0.05)' }}>
+                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="#1b9fff" strokeWidth="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#1b9fff" stroke="none" /></svg>
+                          <span className="text-[10px]" style={{ color: '#1b9fff' }}>Steam Icon</span>
+                        </div>
+                      ) : (
+                        <button onClick={async () => { const p = await pickImageFile('Select Icon'); if (p) setIconSource(p); }}
+                          className="w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all hover:bg-white/[0.04] cursor-pointer"
+                          style={{ border: iconSource ? '2px solid rgba(255,255,255,0.2)' : '2px dashed rgba(255,255,255,0.1)' }}>
+                          {iconSource ? <><span className="text-lg">✓</span><span className="text-[11px] px-2 truncate w-full text-center" style={{ color: '#8b93a8' }}>{fName(iconSource)}</span></> : <span className="text-[11px]" style={{ color: '#4a5068' }}>Select</span>}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button onClick={async () => { const p = await pickImageFile('Select Icon'); if (p) setIconSource(p); }}
+                      className="w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all hover:bg-white/[0.04] cursor-pointer"
+                      style={{ border: iconSource ? '2px solid rgba(255,255,255,0.2)' : '2px dashed rgba(255,255,255,0.1)' }}>
+                      {iconSource ? <><span className="text-lg">✓</span><span className="text-[11px] px-2 truncate w-full text-center" style={{ color: '#8b93a8' }}>{fName(iconSource)}</span></> : <span className="text-[11px]" style={{ color: '#4a5068' }}>Select</span>}
+                    </button>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Banner</label>
@@ -261,6 +303,35 @@ export default function AddGameModal() {
                 </div>
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8b93a8' }}>Mark as Completed</span>
               </label>
+
+              {/* Own on Steam toggle */}
+              {steamId && (
+                <>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center relative"
+                      style={{ background: ownsOnSteam ? 'rgba(27,159,255,0.2)' : 'rgba(15,15,15,0.9)', border: ownsOnSteam ? '1.5px solid rgba(27,159,255,0.5)' : '1.5px solid rgba(255,255,255,0.1)' }}>
+                      <input type="checkbox" checked={ownsOnSteam} onChange={(e) => setOwnsOnSteam(e.target.checked)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      {ownsOnSteam && <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="#1b9fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8b93a8' }}>I Own This Game on Steam</span>
+                  </label>
+                  <AnimatePresence>
+                    {ownsOnSteam && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden">
+                        <div>
+                          <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Steam User ID (64-bit)</label>
+                          <input value={steamUserId} onChange={(e) => setSteamUserId(e.target.value)}
+                            placeholder={localStorage.getItem('steamUserId') ? `Global: ${localStorage.getItem('steamUserId')}` : '76561198012345678'}
+                            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none" style={inputStyle} />
+                          <p className="text-[10px] mt-1" style={{ color: '#555' }}>Leave blank to use your global Steam User ID from Profile settings.</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              )}
               {/* Manual playtime */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#8b93a8' }}>Previous Playtime</label>

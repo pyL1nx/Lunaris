@@ -20,6 +20,9 @@ export interface Game {
   last_played?: number;
   steam_id?: string;
   root_path?: string;
+  owns_on_steam?: boolean;
+  steam_user_id?: string;
+  use_steam_icon?: boolean;
 }
 
 interface GameStoppedEvent {
@@ -206,6 +209,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         emulator_flags: g.emulator_flags ?? '',
         steam_id: g.steam_id ?? '',
         root_path: g.root_path ?? '',
+        owns_on_steam: g.owns_on_steam ?? false,
+        steam_user_id: g.steam_user_id ?? '',
+        use_steam_icon: g.use_steam_icon ?? false,
       }));
       await get().resolveGameAssets(games);
       const idx = Math.min(get().selectedIndex, Math.max(0, games.length - 1));

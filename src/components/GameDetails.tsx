@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation';
-import { useGameStore, formatPlaytimeDetailed, formatPlaytime } from '../stores/gameStore';
+import { useGameStore, formatPlaytime } from '../stores/gameStore';
 
 interface SteamAchievement {
   name: string;
@@ -56,7 +56,7 @@ export default function GameDetails() {
   const [achievements, setAchievements] = useState<SteamAchievement[]>([]);
   const [unlockedAchs, setUnlockedAchs] = useState<Set<string>>(new Set());
 
-  // Fetch achievements
+  // Fetch achievements — supports both Goldberg (default) and Steam-owned modes
   useEffect(() => {
     if (!game || !game.steam_id) {
       setAchievements([]);
@@ -66,47 +66,81 @@ export default function GameDetails() {
     const apiKey = localStorage.getItem('steamApiKey');
     if (!apiKey) return;
 
+    const isOwnedOnSteam = game.owns_on_steam === true;
+    const playerSteamId = game.steam_user_id || localStorage.getItem('steamUserId') || '';
+
     let active = true;
+
+    const fetchUnlockedFromSteam = async () => {
+      if (!playerSteamId) return;
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const unl = await invoke<string[]>('fetch_player_achievements', {
+          steamId: game.steam_id,
+          apiKey,
+          playerSteamId,
+        });
+        if (active) setUnlockedAchs(new Set(unl));
+      } catch (e) {
+        console.error('Steam player achievements fetch failed:', e);
+      }
+    };
+
     const fetchAchs = async () => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        // Fetch schema
-        const res = await invoke<SteamAchievement[]>('fetch_steam_achievements', { 
-          steamId: game.steam_id, 
-          apiKey 
+        // Fetch achievement schema (same for both modes)
+        const res = await invoke<SteamAchievement[]>('fetch_steam_achievements', {
+          steamId: game.steam_id,
+          apiKey,
         });
         if (!active) return;
         setAchievements(res);
-        
-        // Fetch unlocked status from Goldberg
-        const unl = await invoke<string[]>('get_unlocked_achievements', { 
-          steamId: game.steam_id 
-        });
-        if (active) setUnlockedAchs(new Set(unl));
 
-        // Start watcher
-        await invoke('start_achievement_watcher', { steamId: game.steam_id });
+        if (isOwnedOnSteam && playerSteamId) {
+          // Steam-owned: fetch from Steam API
+          await fetchUnlockedFromSteam();
+        } else {
+          // Goldberg: fetch from local files + start watcher
+          const unl = await invoke<string[]>('get_unlocked_achievements', {
+            steamId: game.steam_id,
+          });
+          if (active) setUnlockedAchs(new Set(unl));
+          await invoke('start_achievement_watcher', { steamId: game.steam_id });
+        }
       } catch (e) {
         console.error(e);
       }
     };
     fetchAchs();
 
-    // Listen for real-time unlocks
+    // Listen for events
     let unlisten: (() => void) | null = null;
+    let unlistenStopped: (() => void) | null = null;
+
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen<string[]>('achievements-refreshed', (event) => {
-        if (active) {
-          setUnlockedAchs(new Set(event.payload));
-        }
-      }).then((u) => { unlisten = u; });
+      if (isOwnedOnSteam && playerSteamId) {
+        // Steam-owned: re-poll achievements once when the game stops
+        listen<{ game_id: string }>('game-stopped', (event) => {
+          if (active && event.payload.game_id === game.id) {
+            // Small delay to let Steam servers sync
+            setTimeout(() => fetchUnlockedFromSteam(), 3000);
+          }
+        }).then((u) => { unlistenStopped = u; });
+      } else {
+        // Goldberg: listen for real-time file watcher unlocks
+        listen<string[]>('achievements-refreshed', (event) => {
+          if (active) setUnlockedAchs(new Set(event.payload));
+        }).then((u) => { unlisten = u; });
+      }
     });
 
-    return () => { 
-      active = false; 
+    return () => {
+      active = false;
       if (unlisten) unlisten();
+      if (unlistenStopped) unlistenStopped();
     };
-  }, [game?.steam_id]);
+  }, [game?.steam_id, game?.owns_on_steam, game?.steam_user_id, game?.id]);
 
   if (!game) return null;
 
@@ -158,15 +192,8 @@ export default function GameDetails() {
               </p>
             )}
 
-            {/* Playtime & Last Played */}
+            {/* Last Played */}
             <div className="flex items-center gap-3 mb-5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              <p className="text-sm">
-                {playtime > 0
-                  ? `Time Played: ${formatPlaytimeDetailed(playtime)}`
-                  : 'Not played yet'
-                }
-              </p>
-              <span className="w-1 h-1 rounded-full bg-white/30" />
               <p className="text-sm">
                 Last Played: {game.last_played ? formatLastPlayed(game.last_played) : 'Never'}
               </p>
@@ -287,25 +314,47 @@ export default function GameDetails() {
               <h3 className="absolute top-4 left-6 text-[10px] font-black uppercase tracking-[0.25em] text-white/30 z-10">
                 Achievements
               </h3>
-              {/* Circle on the left */}
-              <div 
-                className="w-[110px] h-[110px] rounded-full flex flex-col items-center justify-center flex-shrink-0 relative overflow-hidden"
-                style={{ 
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '3px solid rgba(255,255,255,0.9)',
-                  boxShadow: '0 0 20px rgba(255,255,255,0.1), inset 0 0 20px rgba(0,0,0,0.5)'
-                }}
-              >
-                {/* Subtle glow behind circle */}
-                <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)' }} />
-                
-                <span className="text-4xl font-black text-white leading-none z-10" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
-                  {unlockedAchs.size}
-                </span>
-                <span className="text-xs font-bold text-white/50 border-t border-white/20 mt-1.5 pt-1 w-14 text-center z-10 uppercase tracking-tighter">
-                  {achievements.length}
-                </span>
-              </div>
+              {/* Circle with green progress ring */}
+              {(() => {
+                const pct = achievements.length > 0 ? unlockedAchs.size / achievements.length : 0;
+                const radius = 50;
+                const circumference = 2 * Math.PI * radius;
+                const offset = circumference * (1 - pct);
+                const isComplete = pct >= 1;
+                return (
+                  <div className="w-[120px] h-[120px] flex-shrink-0 relative flex items-center justify-center">
+                    {/* SVG Progress Ring */}
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 120 120" style={{ transform: 'rotate(-90deg)' }}>
+                      {/* Background track */}
+                      <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+                      {/* Green progress arc */}
+                      <circle
+                        cx="60" cy="60" r={radius} fill="none"
+                        stroke={isComplete ? '#4ade80' : '#28c850'}
+                        strokeWidth="4" strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={offset}
+                        style={{ transition: 'stroke-dashoffset 1s ease-in-out, stroke 0.5s ease' }}
+                      />
+                    </svg>
+                    {/* Inner fill circle */}
+                    <div
+                      className="absolute rounded-full flex flex-col items-center justify-center"
+                      style={{
+                        width: '96px', height: '96px',
+                        background: `conic-gradient(rgba(40,200,80,${isComplete ? 0.18 : 0.10}) ${pct * 360}deg, rgba(255,255,255,0.03) ${pct * 360}deg)`,
+                        boxShadow: isComplete
+                          ? '0 0 30px rgba(40,200,80,0.35), inset 0 0 20px rgba(40,200,80,0.1)'
+                          : 'inset 0 0 20px rgba(0,0,0,0.5)',
+                      }}
+                    >
+                      <span className="text-2xl font-black z-10" style={{ color: isComplete ? '#4ade80' : '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+                        {Math.round(pct * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Right side - scrolling list */}
               <div className="ml-6 flex-1 h-full overflow-y-auto pr-2 custom-scrollbar">

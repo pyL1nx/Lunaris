@@ -14,6 +14,7 @@ export default function TopBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [steamApiKey, setSteamApiKey] = useState(() => localStorage.getItem('steamApiKey') || '');
+  const [steamUserId, setSteamUserId] = useState(() => localStorage.getItem('steamUserId') || '');
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Close profile menu on outside click
@@ -29,6 +30,7 @@ export default function TopBar() {
 
   const handleSaveSteamApiKey = () => {
     localStorage.setItem('steamApiKey', steamApiKey);
+    localStorage.setItem('steamUserId', steamUserId);
     setProfileOpen(false);
   };
 
@@ -254,11 +256,19 @@ export default function TopBar() {
                   placeholder="Enter Steam Web API Key"
                   className="w-full bg-black/40 text-white text-xs px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-white/30 border border-white/10 mb-3 transition-all"
                 />
+                <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Steam User ID (64-bit)</label>
+                <input
+                  type="text"
+                  value={steamUserId}
+                  onChange={(e) => setSteamUserId(e.target.value)}
+                  placeholder="e.g. 76561198012345678"
+                  className="w-full bg-black/40 text-white text-xs px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-white/30 border border-white/10 mb-3 transition-all"
+                />
                 <button
                   onClick={handleSaveSteamApiKey}
                   className="w-full bg-white text-black text-xs font-semibold py-2 rounded-lg hover:bg-gray-200 transition-colors"
                 >
-                  Save Key
+                  Save
                 </button>
               </motion.div>
             )}

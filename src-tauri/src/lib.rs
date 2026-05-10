@@ -34,6 +34,12 @@ pub struct Game {
     pub root_path: Option<String>,
     #[serde(default)]
     pub last_played: Option<u64>,
+    #[serde(default)]
+    pub owns_on_steam: Option<bool>,
+    #[serde(default)]
+    pub steam_user_id: Option<String>,
+    #[serde(default)]
+    pub use_steam_icon: Option<bool>,
 }
 
 // ==============================================
@@ -429,6 +435,47 @@ async fn inject_achievements(steam_id: String, api_key: String, root_path: Strin
     Ok(())
 }
 
+/// Downloads a game's icon from Steam CDN using the Steam store API.
+/// Saves it to the app's assets directory and returns the local file path.
+#[tauri::command]
+async fn fetch_steam_game_icon(app: AppHandle, steam_id: String, game_name: String) -> Result<String, String> {
+    // Use Steam store API to get app details including icon hash
+    let url = format!("https://store.steampowered.com/api/appdetails?appids={}", steam_id);
+    let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let data = &json[&steam_id]["data"];
+    let icon_url = data["header_image"].as_str()
+        .ok_or("Could not find game icon from Steam")?;
+
+    // Also try capsule_image for a square-ish icon, fallback to header_image
+    let best_url = data["capsule_image"].as_str().unwrap_or(icon_url);
+
+    // Download the image
+    let img_resp = reqwest::get(best_url).await.map_err(|e| e.to_string())?;
+    let bytes = img_resp.bytes().await.map_err(|e| e.to_string())?;
+
+    // Save to assets dir
+    let assets_dir = get_assets_dir(&app)?;
+    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+
+    let sanitized: String = game_name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect();
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let filename = format!("{}_steam_icon_{}.jpg", sanitized, timestamp);
+    let dest = assets_dir.join(&filename);
+
+    fs::write(&dest, &bytes).map_err(|e| format!("Failed to save Steam icon: {}", e))?;
+
+    Ok(dest.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 fn get_unlocked_achievements(steam_id: String) -> Result<Vec<String>, String> {
     let appdata = std::env::var("APPDATA").map_err(|_| "No APPDATA found".to_string())?;
@@ -454,6 +501,42 @@ fn get_unlocked_achievements(steam_id: String) -> Result<Vec<String>, String> {
         }
     }
     
+    Ok(unlocked)
+}
+
+/// Fetches a player's achievement unlock status from Steam's GetPlayerAchievements API.
+/// Returns a Vec of achievement API names that the player has unlocked.
+/// Requires: Steam API key, Steam App ID, and the player's 64-bit Steam ID.
+#[tauri::command]
+async fn fetch_player_achievements(steam_id: String, api_key: String, player_steam_id: String) -> Result<Vec<String>, String> {
+    let url = format!(
+        "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key={}&appid={}&steamid={}",
+        api_key, steam_id, player_steam_id
+    );
+    let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    // Check for success
+    let success = json["playerstats"]["success"].as_bool().unwrap_or(false);
+    if !success {
+        let error = json["playerstats"]["error"].as_str().unwrap_or("Unknown error");
+        return Err(format!("Steam API error: {}", error));
+    }
+
+    let achievements = json["playerstats"]["achievements"]
+        .as_array()
+        .ok_or("No achievements data in response")?;
+
+    let mut unlocked = Vec::new();
+    for ach in achievements {
+        let achieved = ach["achieved"].as_u64().unwrap_or(0);
+        if achieved == 1 {
+            if let Some(name) = ach["apiname"].as_str() {
+                unlocked.push(name.to_string());
+            }
+        }
+    }
+
     Ok(unlocked)
 }
 
@@ -840,6 +923,8 @@ pub fn run() {
             get_unlocked_achievements,
             inject_achievements,
             start_achievement_watcher,
+            fetch_player_achievements,
+            fetch_steam_game_icon,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
